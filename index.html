@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waterfall — Chart Builder</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Code+Pro:wght@400;600&display=swap');
+:root {
+  --bg:#f4f5f7;--surface:#fff;--surface2:#eaecf0;--border:#c8ccd4;
+  --text:#000;--text-dim:#4b5563;--text-head1:#1A204C;--text-head2:#21409A;
+  --accent:#21409A;--accent-hover:#1A204C;--danger:#c0392b;--success:#1a7a4a;
+  --header-bg:#1A204C;--font-body:Arial,'Inter',sans-serif;--font-mono:'Source Code Pro','Courier New',monospace;
+  --pos:#1a7a4a;--neg:#c0392b;--total:#21409A;--subtotal:#E37222;
+}
+[data-theme="dark"]{--bg:#0d1020;--surface:#141829;--surface2:#1c2238;--border:#2a3154;--text:#e8eaf0;--text-dim:#8892b0;--text-head1:#a8b4e8;--text-head2:#6b8de0;--accent:#4a72d4;--header-bg:#0d1020;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--header-bg);border-bottom:1px solid var(--border);flex-shrink:0;gap:12px;}
+.logo{font-family:var(--font-mono);font-size:15px;font-weight:700;letter-spacing:.12em;color:#fff;white-space:nowrap;}
+.logo span{color:rgba(255,255,255,.55);font-weight:400;}
+.hbtn{height:32px;padding:0 14px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:all .15s;}
+.hbtn.ghost{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;}
+.hbtn.ghost:hover{background:rgba(255,255,255,.25);}
+.hbtn.primary{background:var(--accent);border:1px solid var(--accent);color:#fff;}
+.hbtn.primary:hover{background:var(--accent-hover);}
+.hbtn.green{border:1px solid #34d399;color:#34d399;background:rgba(52,211,153,.1);}
+.hbtn.green:hover{background:#34d399;color:#000;}
+.hbtn.toggle{width:32px;padding:0;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:15px;}
+.main{display:flex;flex:1;min-height:0;overflow:hidden;}
+.sidebar{width:300px;min-width:300px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-body{flex:1;overflow-y:auto;padding:12px;}
+.sidebar-body::-webkit-scrollbar{width:5px;}
+.sidebar-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.sidebar-footer{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px;}
+.label{font-family:var(--font-mono);font-size:10px;color:var(--text-head2);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:7px 8px;resize:vertical;outline:none;line-height:1.7;}
+textarea:focus{border-color:var(--accent);}
+.sbtn{height:32px;padding:0 12px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;border:1px solid var(--border);background:var(--surface2);color:var(--text);}
+.sbtn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+.sbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff;flex:1;}
+.sbtn.primary:hover{background:var(--accent-hover);}
+.chart-area{flex:1;background:#1c2733;position:relative;overflow:hidden;}
+#chart-svg{width:100%;height:100%;}
+.chart-status{position:absolute;bottom:12px;right:14px;font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,.35);pointer-events:none;}
+.err-msg{background:rgba(192,57,43,.15);border:1px solid var(--danger);border-radius:5px;padding:8px 10px;font-family:var(--font-mono);font-size:11px;color:var(--danger);margin-top:8px;display:none;}
+.tooltip{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:12px;pointer-events:none;z-index:200;display:none;font-family:var(--font-mono);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.4);}
+.opt-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+select{background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:11px;height:28px;padding:0 8px;outline:none;cursor:pointer;flex:1;}
+select:focus{border-color:var(--accent);}
+.legend-row{display:flex;gap:12px;padding:8px 0;font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;}
+.leg{display:flex;align-items:center;gap:5px;}
+.leg-dot{width:12px;height:12px;border-radius:2px;}
+.info-note{font-family:var(--font-mono);font-size:10px;color:var(--text-dim);line-height:1.6;padding:8px 0;border-top:1px solid var(--border);margin-top:8px;}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="logo">WATERFALL<span>BUILDER</span></div>
+    <button class="hbtn toggle" onclick="toggleTheme()" id="themeBtn">◑</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="hbtn primary" onclick="renderChart()">RENDER</button>
+    <button class="hbtn ghost" onclick="resetView()">RESET</button>
+    <button class="hbtn green" onclick="exportPNG()">EXPORT PNG</button>
+  </div>
+</header>
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-body">
+      <div class="label">CSV DATA</div>
+      <textarea id="csvInput" rows="14" placeholder="label,value,type
+Starting Budget,1000000,total
+New Contracts,350000,positive
+Lost Accounts,-120000,negative
+Upsells,85000,positive
+Churn,-60000,negative
+Q2 Subtotal,,subtotal
+New Hires,-200000,negative
+Efficiency Gains,45000,positive
+Final Total,,total"></textarea>
+      <div class="err-msg" id="errMsg"></div>
+      <div class="info-note">
+        type = <b>positive</b> | <b>negative</b> | <b>total</b> | <b>subtotal</b><br>
+        Leave value blank for totals/subtotals — they are calculated automatically.
+      </div>
+      <div style="margin-top:12px;">
+        <div class="label">NUMBER FORMAT</div>
+        <div class="opt-row">
+          <select id="fmtSelect">
+            <option value=",.0f">Integer (1,000)</option>
+            <option value=",.2f">2 Decimal (1,000.00)</option>
+            <option value="$.0f">Dollar ($1,000)</option>
+            <option value="$.2f">Dollar Dec ($1,000.00)</option>
+            <option value=".3s">SI (1.00k / 1.00M)</option>
+          </select>
+        </div>
+        <div class="label">CONNECTOR LINES</div>
+        <div class="opt-row">
+          <select id="connSelect">
+            <option value="yes" selected>Show</option>
+            <option value="no">Hide</option>
+          </select>
+        </div>
+        <div class="label">VALUE LABELS</div>
+        <div class="opt-row">
+          <select id="lblSelect">
+            <option value="both" selected>Value + Running Total</option>
+            <option value="value">Value Only</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="legend-row" style="flex-wrap:wrap">
+        <div class="leg"><div class="leg-dot" style="background:#1a7a4a"></div>Positive</div>
+        <div class="leg"><div class="leg-dot" style="background:#c0392b"></div>Negative</div>
+        <div class="leg"><div class="leg-dot" style="background:#21409A"></div>Total</div>
+        <div class="leg"><div class="leg-dot" style="background:#E37222"></div>Subtotal</div>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="sbtn primary" onclick="renderChart()">RENDER</button>
+      <button class="sbtn" onclick="downloadTemplate()">CSV TEMPLATE</button>
+    </div>
+  </div>
+  <div class="chart-area">
+    <svg id="chart-svg"></svg>
+    <div class="chart-status" id="chartStatus">paste data → click RENDER</div>
+  </div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<script>
+const TEMPLATE = `label,value,type
+Starting Budget,1000000,total
+New Contracts,350000,positive
+Lost Accounts,-120000,negative
+Upsells,85000,positive
+Churn,-60000,negative
+Q2 Subtotal,,subtotal
+New Hires,-200000,negative
+Efficiency Gains,45000,positive
+Final Total,,total`;
+
+function downloadTemplate() {
+  const b = new Blob([TEMPLATE],{type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='waterfall_template.csv'; a.click();
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(l=>l.trim()&&!l.startsWith('#'));
+  if (!lines.length) throw new Error('No data');
+  const hdr = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  const li=hdr.indexOf('label'), vi=hdr.indexOf('value'), ti=hdr.indexOf('type');
+  if (li<0||ti<0) throw new Error('CSV must have columns: label, value, type');
+  const rows = [];
+  for (let i=1;i<lines.length;i++) {
+    const cols = lines[i].split(',').map(c=>c.trim());
+    const label = cols[li]||''; const type = (cols[ti]||'positive').toLowerCase();
+    const rawV = vi>=0 ? cols[vi] : '';
+    const value = rawV===''?null:parseFloat(rawV.replace(/[^0-9.-]/g,''));
+    if (!label) continue;
+    rows.push({label, value, type});
+  }
+  return rows;
+}
+
+function computeBars(rows) {
+  let running = 0;
+  return rows.map(r => {
+    if (r.type==='total'||r.type==='subtotal') {
+      const bar = {label:r.label, type:r.type, start:0, end:running, value:running};
+      return bar;
+    }
+    const v = r.value||0;
+    const bar = {label:r.label, type:r.type, start:running, end:running+v, value:v};
+    running += v;
+    return bar;
+  });
+}
+
+let zoomBehavior;
+function renderChart() {
+  const errEl = document.getElementById('errMsg'); errEl.style.display='none';
+  try {
+    const rows = parseCSV(document.getElementById('csvInput').value);
+    const bars = computeBars(rows);
+    drawWaterfall(bars);
+    document.getElementById('chartStatus').textContent = `${bars.length} bars · range ${d3.format(',.0f')(d3.min(bars,d=>Math.min(d.start,d.end)))} to ${d3.format(',.0f')(d3.max(bars,d=>Math.max(d.start,d.end)))}`;
+  } catch(e){ errEl.textContent=e.message; errEl.style.display='block'; }
+}
+
+function drawWaterfall(bars) {
+  const svgEl = document.getElementById('chart-svg');
+  const W=svgEl.clientWidth||800, H=svgEl.clientHeight||560;
+  const margin={top:40,right:20,bottom:80,left:80};
+  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+  const showConn = document.getElementById('connSelect').value==='yes';
+  const lblMode  = document.getElementById('lblSelect').value;
+  const fmtStr   = document.getElementById('fmtSelect').value;
+  const fmt = fmtStr.startsWith('$') ? v=>d3.format(fmtStr.slice(1))(v).replace(/^/,'$') : d3.format(fmtStr);
+
+  const colors = {positive:'#1a7a4a',negative:'#c0392b',total:'#21409A',subtotal:'#E37222'};
+  const allVals = bars.flatMap(b=>[b.start,b.end]);
+  const yMin=d3.min(allVals), yMax=d3.max(allVals);
+  const yPad=(yMax-yMin)*0.12;
+
+  const x = d3.scaleBand().domain(bars.map(b=>b.label)).range([0,iW]).padding(0.25);
+  const y = d3.scaleLinear().domain([yMin-yPad, yMax+yPad]).range([iH,0]);
+
+  const svg = d3.select(svgEl); svg.selectAll('*').remove();
+  svg.attr('viewBox',`0 0 ${W} ${H}`);
+  const g = svg.append('g').attr('transform',`translate(${margin.left},${margin.top})`);
+
+  if (!zoomBehavior) {
+    zoomBehavior = d3.zoom().scaleExtent([0.5,8]).on('zoom',e=>g.attr('transform',`translate(${margin.left+e.transform.x},${margin.top+e.transform.y})scale(${e.transform.k})`));
+    svg.call(zoomBehavior); svg.on('dblclick.zoom',null);
+  } else svg.call(zoomBehavior);
+
+  // grid
+  g.append('g').attr('class','grid')
+    .call(d3.axisLeft(y).tickSize(-iW).tickFormat(''))
+    .selectAll('line').attr('stroke','rgba(255,255,255,0.06)');
+  g.select('.grid .domain').remove();
+
+  // axes
+  g.append('g').attr('transform',`translate(0,${iH})`).call(d3.axisBottom(x))
+    .selectAll('text').attr('fill','rgba(255,255,255,0.7)').attr('font-family','var(--font-mono)').attr('font-size',10)
+    .attr('transform','rotate(-30)').attr('text-anchor','end').attr('dx','-4').attr('dy','0');
+  g.append('g').call(d3.axisLeft(y).ticks(6).tickFormat(fmt))
+    .selectAll('text').attr('fill','rgba(255,255,255,0.7)').attr('font-family','var(--font-mono)').attr('font-size',10);
+  g.selectAll('.domain').attr('stroke','rgba(255,255,255,0.2)');
+  g.selectAll('.tick line').attr('stroke','rgba(255,255,255,0.2)');
+
+  // zero line
+  if (yMin<0&&yMax>0) g.append('line').attr('x1',0).attr('x2',iW).attr('y1',y(0)).attr('y2',y(0)).attr('stroke','rgba(255,255,255,0.25)').attr('stroke-dasharray','4,3');
+
+  const tooltip = document.getElementById('tooltip');
+
+  // bars
+  bars.forEach((b,i) => {
+    const bx=x(b.label), bw=x.bandwidth();
+    const yTop=y(Math.max(b.start,b.end)), bH=Math.abs(y(b.start)-y(b.end));
+    const col=colors[b.type]||(b.value>=0?colors.positive:colors.negative);
+    const rect=g.append('rect').attr('x',bx).attr('y',yTop).attr('width',bw).attr('height',Math.max(2,bH))
+      .attr('fill',col).attr('rx',2).attr('opacity',0.9);
+    rect.on('mouseover',function(e){ d3.select(this).attr('opacity',1); tooltip.style.display='block'; tooltip.innerHTML=`${b.label}: <b>${fmt(b.value)}</b> → <b>${fmt(b.end)}</b>`; })
+       .on('mousemove',e=>{ tooltip.style.left=(e.clientX+14)+'px'; tooltip.style.top=(e.clientY-8)+'px'; })
+       .on('mouseout',function(){ d3.select(this).attr('opacity',0.9); tooltip.style.display='none'; });
+
+    if (lblMode!=='none') {
+      const isAbove = b.value>=0 || b.type==='total'||b.type==='subtotal';
+      const ly = isAbove ? yTop-4 : yTop+Math.max(2,bH)+12;
+      g.append('text').attr('x',bx+bw/2).attr('y',ly).attr('text-anchor','middle')
+        .attr('fill','rgba(255,255,255,0.9)').attr('font-family','var(--font-mono)').attr('font-size',9)
+        .text(b.type==='total'||b.type==='subtotal' ? fmt(b.end) : fmt(b.value));
+      if (lblMode==='both' && b.type!=='total'&&b.type!=='subtotal') {
+        g.append('text').attr('x',bx+bw/2).attr('y',ly-11).attr('text-anchor','middle')
+          .attr('fill','rgba(255,255,255,0.45)').attr('font-family','var(--font-mono)').attr('font-size',8)
+          .text(fmt(b.end));
+      }
+    }
+
+    // connector
+    if (showConn && i<bars.length-1) {
+      const nb=bars[i+1];
+      const connY = (nb.type==='total'||nb.type==='subtotal') ? y(b.end) : y(b.end);
+      g.append('line').attr('x1',bx+bw).attr('x2',x(nb.label)).attr('y1',connY).attr('y2',connY)
+        .attr('stroke','rgba(255,255,255,0.2)').attr('stroke-dasharray','3,2').attr('stroke-width',1);
+    }
+  });
+}
+
+function resetView(){ if(zoomBehavior) d3.select('#chart-svg').transition().duration(400).call(zoomBehavior.transform,d3.zoomIdentity); }
+
+async function exportPNG(){
+  const svgEl=document.getElementById('chart-svg');
+  const W=svgEl.clientWidth,H=svgEl.clientHeight,scale=2000/Math.min(W,H);
+  const outW=Math.round(W*scale),outH=Math.round(H*scale);
+  const clone=svgEl.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg'); clone.setAttribute('width',outW); clone.setAttribute('height',outH); clone.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'}));
+  const img=new Image();
+  img.onload=()=>{
+    const c=document.createElement('canvas'); c.width=outW; c.height=outH;
+    const ctx=c.getContext('2d'); ctx.fillStyle='#1c2733'; ctx.fillRect(0,0,outW,outH); ctx.drawImage(img,0,0,outW,outH); URL.revokeObjectURL(url);
+    c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`waterfall_${Date.now()}.png`;a.click();},'image/png');
+  }; img.src=url;
+}
+
+function toggleTheme(){ const d=document.documentElement; const dark=d.getAttribute('data-theme')==='dark'; d.setAttribute('data-theme',dark?'':'dark'); document.getElementById('themeBtn').textContent=dark?'◑':'◐'; }
+window.addEventListener('load',renderChart);
+window.addEventListener('resize',()=>{ try{renderChart();}catch(e){} });
+</script>
+</body>
+</html>
